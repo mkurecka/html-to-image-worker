@@ -1,0 +1,25 @@
+{
+  "name": "html-to-image-worker",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker for converting HTML to images using Puppeteer",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "wrangler dev --remote",
+    "deploy": "wrangler deploy",
+    "deploy:production": "wrangler deploy --env production"
+  },
+  "dependencies": {
+  },
+  "devDependencies": {
+    "wrangler": "^4.24.4"
+  },
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "puppeteer",
+    "html-to-image",
+    "screenshot"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}

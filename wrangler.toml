@@ -1,0 +1,20 @@
+# wrangler.toml
+name = "html-to-image-worker"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Environment variables (configure these in Cloudflare dashboard or use wrangler secrets)
+[vars]
+# CLOUDFLARE_API_TOKEN = "your-api-token-here"
+# CLOUDFLARE_ACCOUNT_ID = "your-account-id-here"
+
+# For development
+[env.development]
+# CLOUDFLARE_API_TOKEN = "your-api-token-here"
+# CLOUDFLARE_ACCOUNT_ID = "your-account-id-here"
+
+# For production  
+[env.production]
+# CLOUDFLARE_API_TOKEN = "your-api-token-here"
+# CLOUDFLARE_ACCOUNT_ID = "your-account-id-here"
