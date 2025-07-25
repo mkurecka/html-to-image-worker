@@ -1,4 +1,4 @@
-# wrangler.toml
+# wrangler.toml (wrangler v3.88.0^)
 name = "html-to-image-worker"
 main = "src/index.js"
 compatibility_date = "2024-11-01"
@@ -14,18 +14,34 @@ preview_bucket_name = "html-images-dev"
 [browser]
 binding = "BROWSER"
 
-# Environment variables (configure these in Cloudflare dashboard or use wrangler secrets)
+# Observability configuration
+[observability.logs]
+enabled = false
+
+# Environment variables
 [vars]
 R2_PUBLIC_DOMAIN = "pub-0f88a89fca694876be6529864f42efa7.r2.dev"
-# CLOUDFLARE_API_TOKEN = "your-api-token-here"
-# CLOUDFLARE_ACCOUNT_ID = "your-account-id-here"
 
-# For development
+# Development environment
 [env.development]
-# CLOUDFLARE_API_TOKEN = "your-api-token-here"
-# CLOUDFLARE_ACCOUNT_ID = "your-account-id-here"
+name = "html-to-image-worker-dev"
 
-# For production  
+[[env.development.r2_buckets]]
+binding = "IMAGE_BUCKET"
+bucket_name = "html-images-dev"
+preview_bucket_name = "html-images-dev"
+
+[env.development.vars]
+R2_PUBLIC_DOMAIN = "pub-0f88a89fca694876be6529864f42efa7.r2.dev"
+
+# Production environment
 [env.production]
-# CLOUDFLARE_API_TOKEN = "your-api-token-here"
-# CLOUDFLARE_ACCOUNT_ID = "your-account-id-here"
+name = "html-to-image-worker-prod"
+
+[[env.production.r2_buckets]]
+binding = "IMAGE_BUCKET"
+bucket_name = "html-images-prod"
+preview_bucket_name = "html-images-prod"
+
+[env.production.vars]
+R2_PUBLIC_DOMAIN = "pub-0f88a89fca694876be6529864f42efa7.r2.dev"

@@ -1,20 +1,21 @@
-# HTML to Image Converter - Cloudflare Workers
+# HTML to Image API - Cloudflare Workers
 
-A powerful HTML to image conversion service built on Cloudflare Workers using the Browser Rendering API. Convert HTML content to high-quality PNG, JPEG, or WebP images with a simple API call.
+A powerful HTML to image conversion service built on Cloudflare Workers using Puppeteer. Convert HTML templates to high-quality PNG/JPEG images with variable replacement and R2 storage.
 
 ## 🚀 Features
 
-- **Multiple formats**: PNG, JPEG, WebP support
-- **Customizable dimensions**: Set width, height, and device scale factor
-- **Custom CSS**: Add additional styling to your HTML
-- **Interactive demo**: Built-in web interface for testing
+- **Template Variables**: Use `{{VARIABLE}}` syntax for dynamic content
+- **Real Puppeteer**: Actual browser rendering with @cloudflare/puppeteer
+- **R2 Storage**: Images stored in Cloudflare R2 with public URLs
+- **Multiple formats**: PNG, JPEG support with quality control
+- **Variable Processing**: Extract, validate, and replace template variables
+- **Production Ready**: Error handling, validation, security headers
 - **Fast & scalable**: Powered by Cloudflare Workers edge network
-- **Cost-effective**: ~$0.06-0.09 per 1,000 renders
 
 ## 🔧 Setup
 
 ### Prerequisites
-- Cloudflare account
+- Cloudflare account with R2 and Browser bindings enabled
 - Node.js and npm installed
 - Wrangler CLI: `npm install -g wrangler`
 
@@ -22,7 +23,7 @@ A powerful HTML to image conversion service built on Cloudflare Workers using th
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-username/html-to-image-worker.git
+   git clone https://github.com/mkurecka/html-to-image-worker.git
    cd html-to-image-worker
    ```
 
@@ -31,27 +32,9 @@ A powerful HTML to image conversion service built on Cloudflare Workers using th
    npm install
    ```
 
-3. **Configure environment variables**
-   
-   Get your Cloudflare API token and Account ID:
-   - Go to [Cloudflare Dashboard](https://dash.cloudflare.com)
-   - Navigate to "My Profile" → "API Tokens"
-   - Create token with "Browser Rendering - Edit" permissions
-   - Copy your Account ID from the right sidebar
-
-   Then configure using one of these methods:
-
-   **Method 1: Wrangler secrets (recommended)**
+3. **Create R2 bucket**
    ```bash
-   wrangler secret put CLOUDFLARE_API_TOKEN
-   wrangler secret put CLOUDFLARE_ACCOUNT_ID
-   ```
-
-   **Method 2: Environment variables in wrangler.toml**
-   ```toml
-   [vars]
-   CLOUDFLARE_API_TOKEN = "your-api-token-here"
-   CLOUDFLARE_ACCOUNT_ID = "your-account-id-here"
+   npx wrangler r2 bucket create html-images
    ```
 
 4. **Deploy to Cloudflare Workers**
@@ -59,24 +42,51 @@ A powerful HTML to image conversion service built on Cloudflare Workers using th
    npm run deploy
    ```
 
+The worker will automatically set up browser and R2 bindings as configured in `wrangler.toml`.
+
 ## 📖 Usage
 
-### API Endpoint
+### API Endpoints
 
-**POST** `/html-to-image`
+**Live API**: `https://html-to-image-worker.kureckamichal.workers.dev`
 
-### Request Body
+- **GET** `/` - Complete API documentation with examples
+- **POST** `/template/render` - Generate images from templates with variables
+- **POST** `/template/preview` - Preview processed HTML without generating image
+- **POST** `/template/variables` - Extract all variables from template
+- **POST** `/render` - Generate image from plain HTML
+- **GET** `/health` - Service health check
+
+### Template Rendering (Recommended)
+
+**POST** `/template/render`
 
 ```json
 {
-  "html": "<h1>Hello World!</h1>",
-  "width": 800,
-  "height": 600,
+  "template": "<div style='background: #FF6B6B; color: white; padding: 30px; text-align: center;'><h1>{{title}}</h1><p>{{message}}</p></div>",
+  "variables": {
+    "title": "Hello World!",
+    "message": "Generated with API"
+  },
+  "width": 400,
+  "height": 250,
   "format": "png",
   "quality": 90,
-  "deviceScaleFactor": 1,
-  "css": "body { background: #f0f0f0; }",
-  "delay": 0
+  "returnUrl": true
+}
+```
+
+### Simple HTML Rendering
+
+**POST** `/render`
+
+```json
+{
+  "html": "<div style='padding: 40px; background: #007bff; color: white; text-align: center;'><h1>Simple HTML</h1><p>No variables needed</p></div>",
+  "width": 400,
+  "height": 200,
+  "format": "png",
+  "returnUrl": true
 }
 ```
 
@@ -84,89 +94,107 @@ A powerful HTML to image conversion service built on Cloudflare Workers using th
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `html` | string | **required** | HTML content to render |
+| `template` | string | **required** | HTML template with `{{VARIABLE}}` placeholders |
+| `variables` | object | {} | Key-value pairs for variable replacement |
+| `html` | string | **required** | Static HTML content (for `/render` endpoint) |
 | `width` | number | 1200 | Viewport width in pixels |
 | `height` | number | 800 | Viewport height in pixels |
-| `format` | string | "png" | Output format: "png", "jpeg", "webp" |
+| `format` | string | "png" | Output format: "png", "jpeg" |
 | `quality` | number | 90 | JPEG quality (1-100) |
 | `deviceScaleFactor` | number | 1 | Device pixel ratio (1x, 2x, 3x) |
-| `css` | string | "" | Additional CSS styles |
-| `delay` | number | 0 | Delay in milliseconds before screenshot |
+| `returnUrl` | boolean | true | Return R2 URL instead of binary data |
+| `sanitize` | boolean | true | Sanitize variables to prevent XSS |
+
+### Response Format
+
+```json
+{
+  "success": true,
+  "data": {
+    "url": "https://pub-0f88a89fca694876be6529864f42efa7.r2.dev/template-xxx.png",
+    "filename": "template-xxx.png",
+    "size": 24080,
+    "format": "png",
+    "dimensions": { "width": 400, "height": 250 },
+    "template": {
+      "variables": ["title", "message"],
+      "processed": { "title": "Hello World!", "message": "Generated with API" },
+      "validation": { "isValid": true, "missing": [] }
+    }
+  }
+}
+```
 
 ### Examples
 
-**Basic usage:**
+**Template with variables:**
 ```bash
-curl -X POST https://your-worker.workers.dev/html-to-image \
-  -H "Content-Type: application/json" \
-  -d '{"html": "<h1>Hello World!</h1>", "width": 800, "height": 400}' \
-  --output result.png
-```
-
-**With custom CSS:**
-```bash
-curl -X POST https://your-worker.workers.dev/html-to-image \
+curl -X POST https://html-to-image-worker.kureckamichal.workers.dev/template/render \
   -H "Content-Type: application/json" \
   -d '{
-    "html": "<h1>Styled Content</h1>",
-    "css": "h1 { color: blue; text-align: center; }",
-    "width": 600,
-    "height": 300,
-    "format": "jpeg",
-    "quality": 85
-  }' \
-  --output styled.jpeg
+    "template": "<div style=\"background: #FF6B6B; color: white; padding: 30px; text-align: center;\"><h1>{{title}}</h1><p>{{message}}</p></div>",
+    "variables": {"title": "Hello World!", "message": "Generated with API"},
+    "width": 400,
+    "height": 250,
+    "format": "png"
+  }'
 ```
 
-**Using JSON file:**
+**Simple HTML rendering:**
 ```bash
-echo '{
-  "html": "<div style=\"padding: 20px; background: linear-gradient(45deg, #ff6b6b, #4ecdc4); color: white; border-radius: 10px;\"><h1>Beautiful Card</h1><p>Generated with Cloudflare Workers</p></div>",
-  "width": 500,
-  "height": 300
-}' > request.json
-
-curl -X POST https://your-worker.workers.dev/html-to-image \
+curl -X POST https://html-to-image-worker.kureckamichal.workers.dev/render \
   -H "Content-Type: application/json" \
-  -d @request.json \
-  --output card.png
+  -d '{
+    "html": "<div style=\"padding: 40px; background: #007bff; color: white; text-align: center;\"><h1>Simple HTML</h1><p>No variables needed</p></div>",
+    "width": 400,
+    "height": 200,
+    "format": "png"
+  }'
 ```
 
-## 🎨 Demo Interface
-
-Visit your deployed worker URL to access the interactive demo:
+**Extract template variables:**
+```bash
+curl -X POST https://html-to-image-worker.kureckamichal.workers.dev/template/variables \
+  -H "Content-Type: application/json" \
+  -d '{"template": "<div>Invoice #{{invoiceNumber}} for {{companyName}} - Amount: ${{amount}}</div>"}'
 ```
-https://your-worker.workers.dev/
+
+## 🎨 API Documentation
+
+Visit the live API for complete documentation with examples:
+```
+https://html-to-image-worker.kureckamichal.workers.dev/
 ```
 
-The demo includes:
-- Live HTML editor
-- CSS customization
-- Format and quality options
-- Pre-built examples (business cards, charts, invoices)
-- Instant preview and download
+The API documentation includes:
+- Complete endpoint documentation
+- Copy-paste ready curl examples
+- Template variable syntax
+- Response format details
+- Real-world use cases (invoices, certificates, business cards)
 
 ## 💰 Cost Analysis
 
 ### Cloudflare Workers Pricing
 - **Requests**: $0.50 per million requests (first 100K free daily)
 - **CPU Time**: $0.02 per 100,000 GB-seconds
-- **Browser Rendering**: $0.05 per 1,000 requests
+- **Browser Rendering**: Browser usage included in worker
+- **R2 Storage**: $0.015 per GB stored, $0.36 per million Class A operations
 
-### Estimated Costs
-- **Per 1,000 renders**: ~$0.06-0.09
-- **10K renders/month**: ~$0.60-0.90
-- **100K renders/month**: ~$6-9
-- **1M renders/month**: ~$60-90
+### Estimated Costs (per 1,000 renders)
+- **Worker execution**: ~$0.02-0.05
+- **R2 storage**: ~$0.01-0.02
+- **Total**: ~$0.03-0.07 per 1,000 renders
 
-*Note: First 100K requests daily are free*
+*Note: First 100K requests daily are free, R2 has 10GB free storage*
 
 ## 🔒 Security
 
-- API tokens are not stored in the repository
-- Use environment variables or Wrangler secrets
-- CORS enabled for browser requests
-- Input validation and error handling
+- **XSS Protection**: Template variables are sanitized by default
+- **CORS enabled**: For browser requests with security headers
+- **Input validation**: All inputs validated and error handling
+- **R2 Security**: Images stored with public URLs (no authentication needed)
+- **Template Variables**: Automatic HTML escaping prevents XSS
 
 ## 🛠️ Development
 
