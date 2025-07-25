@@ -1,6 +1,6 @@
 import puppeteer from '@cloudflare/puppeteer';
 import { processTemplate, extractTemplateVariables, validateTemplateVariables, sanitizeTemplateVariables, getTemplateSummary } from './utils/template-processor.js';
-import { createSuccessResponse, createErrorResponse, createImageResponse, createOptionsResponse } from './utils/response-utils.js';
+import { createSuccessResponse, createErrorResponse, createImageResponse, createOptionsResponse, createHTMLResponse } from './utils/response-utils.js';
 import { generateImageFilename, uploadImageToR2, generateR2PublicUrl, validateR2Bucket } from './utils/r2-storage.js';
 
 export default {
@@ -17,6 +17,8 @@ export default {
       // Route handling
       switch (pathname) {
         case '/':
+          return handleExamplesPage();
+        
         case '/health':
           return handleHealth();
         
@@ -56,6 +58,47 @@ export default {
     }
   }
 };
+
+/**
+ * Examples page with API documentation
+ */
+function handleExamplesPage() {
+  return createSuccessResponse({
+    service: 'HTML to Image API',
+    status: 'Production Ready',
+    description: 'Convert HTML templates to images with {{VARIABLE}} replacement',
+    features: ['Real Puppeteer rendering', 'R2 storage', 'Template variables', 'Multiple formats'],
+    endpoints: {
+      'POST /template/render': 'Generate images from templates with variables',
+      'POST /template/preview': 'Preview processed HTML without image generation',
+      'POST /template/variables': 'Extract all variables from template',
+      'POST /render': 'Generate image from plain HTML',
+      'GET /health': 'Service health check'
+    },
+    examples: {
+      template_render: {
+        url: 'POST /template/render',
+        body: {
+          template: '<div style="background: #FF6B6B; color: white; padding: 30px; text-align: center;"><h1>{{title}}</h1><p>{{message}}</p></div>',
+          variables: { title: 'Hello World!', message: 'Generated with API' },
+          width: 400,
+          height: 250,
+          format: 'png'
+        }
+      },
+      simple_render: {
+        url: 'POST /render',
+        body: {
+          html: '<div style="padding: 40px; background: #007bff; color: white; text-align: center;"><h1>Simple HTML</h1><p>No variables needed</p></div>',
+          width: 400,
+          height: 200,
+          format: 'png'
+        }
+      }
+    },
+    live_api: 'https://html-to-image-worker.kureckamichal.workers.dev'
+  });
+}
 
 /**
  * Health check endpoint
