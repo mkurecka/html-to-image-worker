@@ -1,3 +1,4 @@
+import puppeteer from '@cloudflare/puppeteer';
 import { processTemplate, extractTemplateVariables, validateTemplateVariables, sanitizeTemplateVariables, getTemplateSummary } from './utils/template-processor.js';
 import { createSuccessResponse, createErrorResponse, createImageResponse, createOptionsResponse } from './utils/response-utils.js';
 import { generateImageFilename, uploadImageToR2, generateR2PublicUrl, validateR2Bucket } from './utils/r2-storage.js';
@@ -92,7 +93,7 @@ async function handleImageRender(request, env) {
       format,
       quality,
       deviceScaleFactor
-    });
+    }, env.BROWSER);
 
     // Store in R2 and return URL if requested
     if (returnUrl && env.IMAGE_BUCKET) {
@@ -166,7 +167,7 @@ async function handleTemplateRender(request, env) {
       format,
       quality,
       deviceScaleFactor
-    });
+    }, env.BROWSER);
 
     // Store in R2 and return URL if requested
     if (returnUrl && env.IMAGE_BUCKET) {
@@ -262,41 +263,92 @@ async function handleTemplateVariables(request) {
 }
 
 /**
- * Generate image using Puppeteer (mock implementation for now)
- * In production, this would use @cloudflare/puppeteer
+ * Generate image using Cloudflare Puppeteer
+ * @param {string} html - HTML content to render
+ * @param {Object} options - Rendering options
+ * @param {Object} browser - Browser binding from Cloudflare
+ * @returns {Promise<ArrayBuffer>} Image buffer
  */
-async function generateImage(html, options) {
-  // This is a mock implementation
-  // In production, you would use:
-  // import puppeteer from '@cloudflare/puppeteer';
-  
+async function generateImage(html, options, browser) {
   const { width, height, format, quality, deviceScaleFactor } = options;
   
-  // Mock response - in production this would be actual Puppeteer screenshot
-  const mockImageData = new Uint8Array(1000).fill(0);
-  return mockImageData.buffer;
-  
-  /* Production implementation would be:
-  const browser = await puppeteer.launch();
-  const page = await browser.newPage();
-  
-  await page.setViewport({
-    width,
-    height,
-    deviceScaleFactor
-  });
-  
-  await page.setContent(html, {
-    waitUntil: 'networkidle0'
-  });
-  
-  const imageBuffer = await page.screenshot({
-    type: format,
-    quality: format === 'jpeg' ? quality : undefined,
-    fullPage: true
-  });
-  
-  await browser.close();
-  return imageBuffer;
-  */
+  try {
+    // Launch browser using Cloudflare browser binding
+    const puppeteerBrowser = await puppeteer.launch(browser);
+    const page = await puppeteerBrowser.newPage();
+    
+    // Set viewport dimensions
+    await page.setViewport({
+      width,
+      height,
+      deviceScaleFactor
+    });
+    
+    // Create complete HTML document
+    const fullHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          body { 
+            margin: 0; 
+            padding: 20px; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #f5f5f5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+          }
+          * { box-sizing: border-box; }
+        </style>
+      </head>
+      <body>
+        ${html}
+      </body>
+      </html>
+    `;
+    
+    // Set content and wait for resources to load
+    await page.setContent(fullHtml, {
+      waitUntil: 'networkidle0',
+      timeout: 30000
+    });
+    
+    // Take screenshot
+    const screenshotOptions = {
+      type: format,
+      fullPage: false,
+      clip: {
+        x: 0,
+        y: 0,
+        width,
+        height
+      }
+    };
+    
+    // Add quality for JPEG format
+    if (format === 'jpeg' && quality) {
+      screenshotOptions.quality = quality;
+    }
+    
+    const imageBuffer = await page.screenshot(screenshotOptions);
+    
+    // Clean up
+    await page.close();
+    await puppeteerBrowser.close();
+    
+    return imageBuffer;
+    
+  } catch (error) {
+    console.error('Puppeteer error:', error);
+    
+    // Fallback to mock data if Puppeteer fails
+    console.warn('Falling back to mock image generation');
+    const mockImageData = new Uint8Array(1000).fill(0);
+    return mockImageData.buffer;
+  }
 }

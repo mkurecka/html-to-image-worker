@@ -10,9 +10,13 @@ binding = "IMAGE_BUCKET"
 bucket_name = "html-images"
 preview_bucket_name = "html-images-dev"
 
+# Browser binding for Puppeteer
+[browser]
+binding = "BROWSER"
+
 # Environment variables (configure these in Cloudflare dashboard or use wrangler secrets)
 [vars]
-R2_PUBLIC_DOMAIN = "your-domain.com"
+R2_PUBLIC_DOMAIN = "pub-0f88a89fca694876be6529864f42efa7.r2.dev"
 # CLOUDFLARE_API_TOKEN = "your-api-token-here"
 # CLOUDFLARE_ACCOUNT_ID = "your-account-id-here"
 

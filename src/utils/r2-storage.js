@@ -48,15 +48,15 @@ export async function uploadImageToR2(bucket, imageBuffer, filename, format = 'p
  * Generates public URL for R2 object
  * @param {string} bucketName - R2 bucket name
  * @param {string} filename - Object key/filename
- * @param {string} customDomain - Optional custom domain
+ * @param {string} customDomain - Optional custom domain (should be full R2 public URL)
  * @returns {string} Public URL
  */
 export function generateR2PublicUrl(bucketName, filename, customDomain = null) {
-  if (customDomain) {
+  if (customDomain && customDomain !== 'your-domain.com') {
     return `https://${customDomain}/${filename}`;
   }
   
-  // Default R2 public URL format
+  // Fallback to default format if no custom domain
   return `https://pub-${bucketName}.r2.dev/${filename}`;
 }
 
