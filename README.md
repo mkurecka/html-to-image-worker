@@ -105,6 +105,46 @@ The worker will automatically set up browser and R2 bindings as configured in `w
 | `returnUrl` | boolean | true | Return R2 URL instead of binary data |
 | `sanitize` | boolean | true | Sanitize variables to prevent XSS |
 
+### Recommended Social Media Dimensions
+
+#### Instagram
+- **Story**: 1080 x 1920 pixels (9:16 ratio)
+- **Post Square**: 1080 x 1080 pixels (1:1 ratio)
+- **Post Portrait**: 1080 x 1350 pixels (4:5 ratio)
+- **Profile Picture**: 320 x 320 pixels
+
+#### Facebook
+- **Post Image**: 1200 x 628 pixels
+- **Profile Picture**: 196 x 196 pixels
+- **Cover Photo**: 1584 x 396 pixels
+- **Story**: 1080 x 1920 pixels (9:16 ratio)
+
+#### X (Twitter)
+- **Post Image Landscape**: 1200 x 628 pixels
+- **Post Image Square**: 1200 x 1200 pixels
+- **Profile Picture**: 400 x 400 pixels
+- **Header**: 1500 x 500 pixels
+
+#### LinkedIn
+- **Post Image**: 1200 x 627 pixels
+- **Profile Picture**: 400 x 400 pixels
+- **Cover Photo**: 1584 x 396 pixels
+- **Company Logo**: 300 x 300 pixels
+
+#### YouTube
+- **Thumbnail**: 1280 x 720 pixels (16:9 ratio)
+- **Channel Art**: 2560 x 1440 pixels
+- **Shorts**: 1080 x 1920 pixels (9:16 ratio)
+
+#### TikTok
+- **Video**: 1080 x 1920 pixels (9:16 ratio)
+- **Profile Picture**: 200 x 200 pixels
+
+#### Pinterest
+- **Pin**: 1000 x 1500 pixels (2:3 ratio)
+- **Square Pin**: 1000 x 1000 pixels
+- **Profile Picture**: 165 x 165 pixels
+
 ### Response Format
 
 ```json
