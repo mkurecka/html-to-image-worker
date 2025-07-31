@@ -237,8 +237,8 @@ async function handleTemplateRender(request, env) {
       return createErrorResponse(`Missing required variables: ${validation.missing.join(', ')}`, 400);
     }
 
-    // Sanitize variables if requested
-    const processedVariables = sanitize ? sanitizeTemplateVariables(variables) : variables;
+    // Sanitize variables if requested (skip quote escaping for HTML content)
+    const processedVariables = sanitize ? sanitizeTemplateVariables(variables, { skipQuoteEscaping: true }) : variables;
     
     // Process template
     const processedHtml = processTemplate(template, processedVariables);
@@ -301,8 +301,8 @@ async function handleTemplatePreview(request) {
     const templateVars = extractTemplateVariables(template);
     const validation = validateTemplateVariables(variables, templateVars);
     
-    // Process variables
-    const processedVariables = sanitize ? sanitizeTemplateVariables(variables) : variables;
+    // Process variables (skip quote escaping for HTML content)
+    const processedVariables = sanitize ? sanitizeTemplateVariables(variables, { skipQuoteEscaping: true }) : variables;
     const processedHtml = processTemplate(template, processedVariables);
     
     // Get processing summary

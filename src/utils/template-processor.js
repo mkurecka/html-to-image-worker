@@ -192,24 +192,34 @@ export function validateTemplateVariables(variables, requiredVars) {
 /**
  * Sanitizes template variables to prevent XSS
  * @param {Object} variables - Variables to sanitize
+ * @param {Object} options - Sanitization options
+ * @param {boolean} options.skipQuoteEscaping - Skip quote escaping for HTML content
  * @returns {Object} Sanitized variables
  */
-export function sanitizeTemplateVariables(variables) {
+export function sanitizeTemplateVariables(variables, options = {}) {
   if (!variables || typeof variables !== 'object') {
     return {};
   }
 
+  const { skipQuoteEscaping = false } = options;
   const sanitized = {};
   
   Object.entries(variables).forEach(([key, value]) => {
     if (typeof value === 'string') {
       // Basic HTML escaping to prevent XSS
-      sanitized[key] = value
+      let sanitizedValue = value
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+        .replace(/>/g, '&gt;');
+      
+      // Only escape quotes if not explicitly skipped (for HTML content)
+      if (!skipQuoteEscaping) {
+        sanitizedValue = sanitizedValue
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+      
+      sanitized[key] = sanitizedValue;
     } else {
       sanitized[key] = value;
     }
