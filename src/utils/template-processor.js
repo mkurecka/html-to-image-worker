@@ -61,63 +61,82 @@ function processConditionalBlocks(html, variables) {
  */
 function processIfBlocks(html, variables, isUnless = false) {
   const blockType = isUnless ? 'unless' : 'if';
-  const openPattern = new RegExp(`\\{\\{#${blockType}\\s+([^}]+)\\}\\}`, 'g');
-  const closePattern = new RegExp(`\\{\\{\\/${blockType}\\}\\}`, 'g');
-  const elsePattern = /\{\{else\}\}/g;
+  const openTag = `{{#${blockType}`;
+  const closeTag = `{{/${blockType}}}`;
+  const elseTag = '{{else}}';
   
-  let processedHtml = html;
-  let match;
+  let result = html;
+  let changed = true;
   
-  // Find all opening blocks
-  const openMatches = [];
-  while ((match = openPattern.exec(html)) !== null) {
-    openMatches.push({
-      index: match.index,
-      length: match[0].length,
-      variableName: match[1].trim(),
-      fullMatch: match[0]
-    });
+  // Keep processing until no more blocks are found (handles nested blocks)
+  while (changed) {
+    changed = false;
+    let workingHtml = result;
+    
+    // Find the first opening tag
+    let openIndex = workingHtml.indexOf(openTag);
+    while (openIndex !== -1) {
+      // Find the end of the opening tag
+      let openTagEnd = workingHtml.indexOf('}}', openIndex) + 2;
+      if (openTagEnd === 1) break; // Invalid tag
+      
+      // Extract variable name
+      let openTagContent = workingHtml.substring(openIndex + openTag.length, openTagEnd - 2).trim();
+      
+      // Find corresponding closing tag
+      let depth = 1;
+      let searchIndex = openTagEnd;
+      let closeIndex = -1;
+      
+      while (depth > 0 && searchIndex < workingHtml.length) {
+        let nextOpen = workingHtml.indexOf(openTag, searchIndex);
+        let nextClose = workingHtml.indexOf(closeTag, searchIndex);
+        
+        if (nextClose === -1) break; // No closing tag found
+        
+        if (nextOpen !== -1 && nextOpen < nextClose) {
+          depth++;
+          searchIndex = nextOpen + openTag.length;
+        } else {
+          depth--;
+          if (depth === 0) {
+            closeIndex = nextClose;
+          }
+          searchIndex = nextClose + closeTag.length;
+        }
+      }
+      
+      if (closeIndex === -1) break; // No matching close tag
+      
+      // Extract content between tags
+      let blockContent = workingHtml.substring(openTagEnd, closeIndex);
+      
+      // Check for {{else}}
+      let elseIndex = blockContent.indexOf(elseTag);
+      let ifContent = '';
+      let elseContent = '';
+      
+      if (elseIndex !== -1) {
+        ifContent = blockContent.substring(0, elseIndex);
+        elseContent = blockContent.substring(elseIndex + elseTag.length);
+      } else {
+        ifContent = blockContent;
+      }
+      
+      // Evaluate condition
+      const variableValue = variables[openTagContent];
+      const condition = isUnless ? !isTruthy(variableValue) : isTruthy(variableValue);
+      
+      const replacement = condition ? ifContent : elseContent;
+      
+      // Replace the entire block
+      result = workingHtml.substring(0, openIndex) + replacement + workingHtml.substring(closeIndex + closeTag.length);
+      changed = true;
+      break; // Start over with the modified string
+    }
   }
   
-  // Process blocks from end to start to avoid index shifting
-  for (let i = openMatches.length - 1; i >= 0; i--) {
-    const openMatch = openMatches[i];
-    
-    // Find corresponding closing block
-    const afterOpen = html.substring(openMatch.index + openMatch.length);
-    const closeMatch = afterOpen.match(closePattern);
-    
-    if (!closeMatch) {
-      continue; // Skip malformed blocks
-    }
-    
-    const blockStart = openMatch.index;
-    const blockEnd = openMatch.index + openMatch.length + closeMatch.index + closeMatch[0].length;
-    const blockContent = html.substring(openMatch.index + openMatch.length, openMatch.index + openMatch.length + closeMatch.index);
-    
-    // Check for {{else}} within the block
-    const elseMatch = blockContent.match(elsePattern);
-    let ifContent, elseContent;
-    
-    if (elseMatch) {
-      ifContent = blockContent.substring(0, elseMatch.index);
-      elseContent = blockContent.substring(elseMatch.index + elseMatch[0].length);
-    } else {
-      ifContent = blockContent;
-      elseContent = '';
-    }
-    
-    // Evaluate condition
-    const variableValue = variables[openMatch.variableName];
-    const condition = isUnless ? !isTruthy(variableValue) : isTruthy(variableValue);
-    
-    const replacement = condition ? ifContent : elseContent;
-    
-    // Replace the entire block
-    processedHtml = processedHtml.substring(0, blockStart) + replacement + processedHtml.substring(blockEnd);
-  }
-  
-  return processedHtml;
+  return result;
 }
 
 /**
