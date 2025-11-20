@@ -44,6 +44,9 @@ jspm_packages/
 .env.test.local
 .env.production.local
 
+# Cloudflare Workers secrets (CRITICAL - contains API keys and tokens)
+.dev.vars
+
 # Logs
 logs
 *.log
@@ -78,4 +81,18 @@ api-test*
 worker-test*
 final-test*
 simple-test*
-EOF < /dev/null
+comprehensive-test*
+production-test*
+simple-render-test*
+template-examples*
+template-usage-guide.md
+real-puppeteer-image*
+test-output*
+test-preview*
+test-render*
+test-request*
+test-template*
+test-variables*
+test-api-variables*
+test-chart-final*
+test_template*

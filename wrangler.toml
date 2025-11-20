@@ -21,6 +21,8 @@ enabled = false
 # Environment variables
 [vars]
 R2_PUBLIC_DOMAIN = "pub-0f88a89fca694876be6529864f42efa7.r2.dev"
+ENVIRONMENT = "production"
+# API_KEYS = "your-secret-key-1,your-secret-key-2" # Add via wrangler secret put API_KEYS
 
 # Development environment
 [env.development]
@@ -33,6 +35,7 @@ preview_bucket_name = "html-images-dev"
 
 [env.development.vars]
 R2_PUBLIC_DOMAIN = "pub-0f88a89fca694876be6529864f42efa7.r2.dev"
+ENVIRONMENT = "development"
 
 # Production environment
 [env.production]
@@ -45,3 +48,4 @@ preview_bucket_name = "html-images-prod"
 
 [env.production.vars]
 R2_PUBLIC_DOMAIN = "pub-0f88a89fca694876be6529864f42efa7.r2.dev"
+ENVIRONMENT = "production"

@@ -2,6 +2,7 @@ import puppeteer from '@cloudflare/puppeteer';
 import { processTemplate, extractTemplateVariables, validateTemplateVariables, sanitizeTemplateVariables, getTemplateSummary } from './utils/template-processor.js';
 import { createSuccessResponse, createErrorResponse, createImageResponse, createOptionsResponse, createHTMLResponse } from './utils/response-utils.js';
 import { generateImageFilename, uploadImageToR2, generateR2PublicUrl, validateR2Bucket } from './utils/r2-storage.js';
+import { validateApiKey, isPublicEndpoint } from './utils/auth-middleware.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -11,6 +12,14 @@ export default {
     // Handle CORS preflight
     if (method === 'OPTIONS') {
       return createOptionsResponse();
+    }
+
+    // Authentication check for protected endpoints
+    if (!isPublicEndpoint(pathname)) {
+      const authResult = validateApiKey(request, env);
+      if (!authResult.isValid) {
+        return createErrorResponse(authResult.error, 401);
+      }
     }
 
     try {
