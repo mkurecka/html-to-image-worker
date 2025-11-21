@@ -32,12 +32,32 @@ A powerful HTML to image conversion service built on Cloudflare Workers using Pu
    npm install
    ```
 
-3. **Create R2 bucket**
+3. **Configure environment variables**
+   ```bash
+   # Copy the example file
+   cp .dev.vars.example .dev.vars
+
+   # Edit .dev.vars with your actual values
+   # Add your Cloudflare credentials and generate secure API keys
+   ```
+
+   Generate secure API keys:
+   ```bash
+   openssl rand -hex 32
+   ```
+
+4. **Create R2 bucket**
    ```bash
    npx wrangler r2 bucket create html-images
    ```
 
-4. **Deploy to Cloudflare Workers**
+5. **Set production API keys (secure)**
+   ```bash
+   wrangler secret put API_KEYS
+   # Enter your comma-separated API keys when prompted
+   ```
+
+6. **Deploy to Cloudflare Workers**
    ```bash
    npm run deploy
    ```
@@ -46,16 +66,47 @@ The worker will automatically set up browser and R2 bindings as configured in `w
 
 ## 📖 Usage
 
+### 🔐 Authentication
+
+All API endpoints (except `/` and `/health`) require API key authentication.
+
+**Three ways to authenticate:**
+
+1. **X-API-Key header** (Recommended)
+   ```bash
+   -H "X-API-Key: YOUR_API_KEY"
+   ```
+
+2. **Authorization Bearer token**
+   ```bash
+   -H "Authorization: Bearer YOUR_API_KEY"
+   ```
+
+3. **Api-Key header**
+   ```bash
+   -H "Api-Key: YOUR_API_KEY"
+   ```
+
+**Public endpoints** (no authentication required):
+- `GET /` - API documentation
+- `GET /health` - Health check
+
+**Protected endpoints** (authentication required):
+- `POST /render` - Generate image from HTML
+- `POST /template/render` - Generate image from template
+- `POST /template/preview` - Preview processed HTML
+- `POST /template/variables` - Extract template variables
+
 ### API Endpoints
 
 **Live API**: `https://html-to-image-worker.kureckamichal.workers.dev`
 
-- **GET** `/` - Complete API documentation with examples
-- **POST** `/template/render` - Generate images from templates with variables
-- **POST** `/template/preview` - Preview processed HTML without generating image
-- **POST** `/template/variables` - Extract all variables from template
-- **POST** `/render` - Generate image from plain HTML
-- **GET** `/health` - Service health check
+- **GET** `/` - Complete API documentation with examples (public)
+- **POST** `/template/render` - Generate images from templates with variables (protected)
+- **POST** `/template/preview` - Preview processed HTML without generating image (protected)
+- **POST** `/template/variables` - Extract all variables from template (protected)
+- **POST** `/render` - Generate image from plain HTML (protected)
+- **GET** `/health` - Service health check (public)
 
 ### Template Rendering (Recommended)
 
@@ -170,6 +221,7 @@ The worker will automatically set up browser and R2 bindings as configured in `w
 **Template with variables:**
 ```bash
 curl -X POST https://html-to-image-worker.kureckamichal.workers.dev/template/render \
+  -H "X-API-Key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "template": "<div style=\"background: #FF6B6B; color: white; padding: 30px; text-align: center;\"><h1>{{title}}</h1><p>{{message}}</p></div>",
@@ -183,6 +235,7 @@ curl -X POST https://html-to-image-worker.kureckamichal.workers.dev/template/ren
 **Simple HTML rendering:**
 ```bash
 curl -X POST https://html-to-image-worker.kureckamichal.workers.dev/render \
+  -H "X-API-Key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "html": "<div style=\"padding: 40px; background: #007bff; color: white; text-align: center;\"><h1>Simple HTML</h1><p>No variables needed</p></div>",
@@ -195,6 +248,7 @@ curl -X POST https://html-to-image-worker.kureckamichal.workers.dev/render \
 **Extract template variables:**
 ```bash
 curl -X POST https://html-to-image-worker.kureckamichal.workers.dev/template/variables \
+  -H "X-API-Key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"template": "<div>Invoice #{{invoiceNumber}} for {{companyName}} - Amount: ${{amount}}</div>"}'
 ```
@@ -230,11 +284,39 @@ The API documentation includes:
 
 ## 🔒 Security
 
+- **API Key Authentication**: All endpoints (except `/` and `/health`) require valid API key
+- **Multiple Auth Methods**: Supports X-API-Key, Authorization Bearer, and Api-Key headers
+- **Secure Key Storage**: Production keys stored as Wrangler secrets (never in git)
 - **XSS Protection**: Template variables are sanitized by default
 - **CORS enabled**: For browser requests with security headers
 - **Input validation**: All inputs validated and error handling
 - **R2 Security**: Images stored with public URLs (no authentication needed)
 - **Template Variables**: Automatic HTML escaping prevents XSS
+
+### Managing API Keys
+
+**Development:**
+- Keys stored in `.dev.vars` (never committed to git)
+- Example file: `.dev.vars.example`
+
+**Production:**
+```bash
+# Set API keys securely (not stored in git)
+wrangler secret put API_KEYS
+# Enter: key1,key2,key3
+
+# List secrets
+wrangler secret list
+
+# Delete a secret
+wrangler secret delete API_KEYS
+```
+
+**Generate secure keys:**
+```bash
+# Generate a 32-byte hex key
+openssl rand -hex 32
+```
 
 ## 🛠️ Development
 
@@ -249,11 +331,17 @@ npm run dev
 ### Project Structure
 ```
 ├── src/
-│   └── index.js          # Main worker code
-├── wrangler.toml         # Cloudflare Workers configuration
-├── package.json          # Dependencies and scripts
-├── CLAUDE.md            # Project documentation
-└── README.md            # This file
+│   ├── index.js                    # Main worker code
+│   └── utils/
+│       ├── auth-middleware.js      # API key authentication
+│       ├── template-processor.js   # Template variable processing
+│       ├── response-utils.js       # Response helpers
+│       └── r2-storage.js          # R2 storage utilities
+├── wrangler.toml                  # Cloudflare Workers configuration
+├── package.json                   # Dependencies and scripts
+├── .dev.vars.example              # Environment variables template
+├── CLAUDE.md                      # Project documentation
+└── README.md                      # This file
 ```
 
 ### Scripts
