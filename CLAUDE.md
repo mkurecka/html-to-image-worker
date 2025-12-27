@@ -1,14 +1,16 @@
 # Image Renderer - Cloudflare Workers
 
 ## Project Overview
-HTML to image rendering service built on Cloudflare Workers using Puppeteer for serverless image generation.
+HTML to image rendering service on Cloudflare Workers using Puppeteer for serverless image generation.
+
+**Linear Project**: `image-renderer-573f8d7ac5bb`
 
 ## Core Features
 - Convert HTML content to PNG/JPEG images
-- Support for custom CSS styling
+- Custom CSS styling support
 - Responsive image dimensions
 - High-quality rendering with Puppeteer
-- Fast serverless execution on CF Workers
+- Fast serverless execution
 
 ## Technical Stack
 - **Runtime**: Cloudflare Workers
@@ -17,10 +19,11 @@ HTML to image rendering service built on Cloudflare Workers using Puppeteer for 
 - **Deployment**: Wrangler CLI
 
 ## API Endpoints
-- `POST /render` - Generate image from HTML
-- `GET /health` - Health check endpoint
 
-## Request Format
+### POST /render
+Generate image from HTML content.
+
+**Request:**
 ```json
 {
   "html": "<html>...</html>",
@@ -33,20 +36,47 @@ HTML to image rendering service built on Cloudflare Workers using Puppeteer for 
 }
 ```
 
-## Development Commands
-- `npm install` - Install dependencies
-- `npm run dev` - Start development server
-- `npm run deploy` - Deploy to Cloudflare Workers
-- `wrangler dev` - Local development with wrangler
+**Response:** Image binary (PNG/JPEG)
 
-## Cost Considerations
-- CF Workers: $0.50 per million requests
-- CPU time: $0.02 per 100,000 GB-seconds
-- Puppeteer memory usage: ~50-100MB per render
-- Expected cost: $0.10-0.50 per 1000 renders
+### GET /health
+Health check endpoint - returns service status.
 
-## Performance
-- Cold start: ~200-500ms
-- Warm execution: ~100-300ms
-- Memory limit: 128MB (Workers default)
-- Timeout: 30 seconds max
+## Development
+
+### Setup
+```bash
+npm install
+```
+
+### Local Development
+```bash
+npm run dev          # Start dev server
+wrangler dev         # Local with wrangler
+```
+
+### Deployment
+```bash
+npm run deploy       # Deploy to CF Workers
+```
+
+## Performance Targets
+- Cold start: <500ms
+- Warm execution: <300ms
+- Memory limit: 128MB
+- Timeout: 30s max
+
+## Cost Estimation
+- CF Workers: $0.50/million requests
+- CPU time: $0.02/100K GB-seconds
+- Puppeteer memory: ~50-100MB/render
+- **Expected**: $0.10-0.50 per 1,000 renders
+
+## Project Management
+Track issues, features, and bugs in Linear project `image-renderer-573f8d7ac5bb`.
+
+## Key Considerations
+- Optimize HTML for rendering performance
+- Monitor memory usage to stay within limits
+- Handle timeouts gracefully
+- Cache rendered images when possible
+- Validate input HTML to prevent XSS
