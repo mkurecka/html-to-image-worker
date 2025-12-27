@@ -171,12 +171,25 @@ function handleHealth() {
  */
 async function handleImageRender(request, env) {
   try {
+    console.log('[handleImageRender] Request received');
     const body = await request.json();
     const { html, width = 1200, height = 800, format = 'png', quality = 90, deviceScaleFactor = 1, returnUrl = true } = body;
 
+    console.log('[handleImageRender] Parsed request:', {
+      htmlLength: html?.length || 0,
+      width,
+      height,
+      format,
+      returnUrl,
+      hasBrowser: !!env.BROWSER
+    });
+
     if (!html) {
+      console.error('[handleImageRender] No HTML provided');
       return createErrorResponse('HTML content is required', 400);
     }
+
+    console.log('[handleImageRender] Calling generateImage with BROWSER binding:', typeof env.BROWSER);
 
     // Generate image using Puppeteer
     const imageBuffer = await generateImage(html, {
@@ -186,6 +199,8 @@ async function handleImageRender(request, env) {
       quality,
       deviceScaleFactor
     }, env.BROWSER);
+
+    console.log('[handleImageRender] Image generated successfully, size:', imageBuffer.byteLength);
 
     // Store in R2 and return URL if requested
     if (returnUrl && env.IMAGE_BUCKET) {
@@ -210,8 +225,15 @@ async function handleImageRender(request, env) {
     // Fallback to direct image response
     return createImageResponse(imageBuffer, format);
   } catch (error) {
-    console.error('Image render error:', error);
-    return createErrorResponse(error.message, 400);
+    console.error('Image render error:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    return createErrorResponse(
+      `Image rendering failed: ${error.message}`,
+      error.message.includes('timeout') ? 504 : 400
+    );
   }
 }
 
@@ -289,8 +311,15 @@ async function handleTemplateRender(request, env) {
     // Fallback to direct image response
     return createImageResponse(imageBuffer, format);
   } catch (error) {
-    console.error('Template render error:', error);
-    return createErrorResponse(error.message, 400);
+    console.error('Template render error:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    return createErrorResponse(
+      `Template rendering failed: ${error.message}`,
+      error.message.includes('timeout') ? 504 : 400
+    );
   }
 }
 
@@ -363,11 +392,20 @@ async function handleTemplateVariables(request) {
  */
 async function generateImage(html, options, browser) {
   const { width, height, format, quality, deviceScaleFactor } = options;
-  
+
+  console.log('[generateImage] Starting image generation');
+  console.log('[generateImage] Browser binding type:', typeof browser);
+  console.log('[generateImage] Browser binding value:', browser);
+  console.log('[generateImage] Options:', { width, height, format, deviceScaleFactor });
+
   try {
+    console.log('[generateImage] Launching Puppeteer browser...');
     // Launch browser using Cloudflare browser binding
     const puppeteerBrowser = await puppeteer.launch(browser);
+    console.log('[generateImage] Browser launched successfully');
+
     const page = await puppeteerBrowser.newPage();
+    console.log('[generateImage] New page created');
     
     // Set viewport dimensions
     await page.setViewport({
@@ -405,10 +443,14 @@ async function generateImage(html, options, browser) {
     `;
     
     // Set content and wait for resources to load
+    // Use 'load' which waits for DOM and basic resources without network idle
     await page.setContent(fullHtml, {
-      waitUntil: 'networkidle0',
-      timeout: 30000
+      waitUntil: 'load',
+      timeout: 15000
     });
+
+    // Cloudflare Browser doesn't support waitForTimeout - use a simple Promise delay instead
+    await new Promise(resolve => setTimeout(resolve, 500));
     
     // Take screenshot
     const screenshotOptions = {
@@ -436,11 +478,14 @@ async function generateImage(html, options, browser) {
     return imageBuffer;
     
   } catch (error) {
-    console.error('Puppeteer error:', error);
-    
-    // Fallback to mock data if Puppeteer fails
-    console.warn('Falling back to mock image generation');
-    const mockImageData = new Uint8Array(1000).fill(0);
-    return mockImageData.buffer;
+    console.error('Puppeteer error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      code: error.code
+    });
+
+    // Throw the error with more context instead of returning mock data
+    throw new Error(`Browser rendering failed: ${error.message} (code: ${error.code || 'unknown'})`);
   }
 }
