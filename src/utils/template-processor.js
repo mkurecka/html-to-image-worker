@@ -363,7 +363,7 @@ export function validateTemplateVariables(variables, requiredVars) {
   return {
     isValid: missing.length === 0,
     missing,
-    provided: Object.keys(variables || {}),
+    provided: Object.keys(vars),
     required: requiredVars
   };
 }
