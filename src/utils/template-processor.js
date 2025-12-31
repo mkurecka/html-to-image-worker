@@ -42,14 +42,93 @@ export function processTemplate(html, variables = {}) {
  */
 function processConditionalBlocks(html, variables) {
   let processedHtml = html;
-  
-  // Process {{#if}} blocks first
+
+  // Process array blocks first ({{#arrayName}}...{{/arrayName}})
+  processedHtml = processArrayBlocks(processedHtml, variables);
+
+  // Process {{#if}} blocks
   processedHtml = processIfBlocks(processedHtml, variables, false);
-  
+
   // Process {{#unless}} blocks
   processedHtml = processIfBlocks(processedHtml, variables, true);
-  
+
   return processedHtml;
+}
+
+/**
+ * Processes array iteration blocks in template HTML
+ * Supports Mustache-style {{#arrayName}}...{{/arrayName}} syntax
+ * @param {string} html - HTML template with array blocks
+ * @param {Object} variables - Variables containing arrays
+ * @returns {string} Processed HTML with array blocks expanded
+ */
+function processArrayBlocks(html, variables) {
+  let result = html;
+  let changed = true;
+
+  // Keep processing until no more array blocks are found (handles nested)
+  while (changed) {
+    changed = false;
+
+    // Find array blocks: {{#name}}...{{/name}} where name is an array in variables
+    // Skip reserved keywords: if, unless, else
+    const arrayBlockPattern = /\{\{#([^}\s]+)\}\}([\s\S]*?)\{\{\/\1\}\}/;
+    const match = result.match(arrayBlockPattern);
+
+    if (match) {
+      const [fullMatch, arrayName, blockContent] = match;
+
+      // Skip if this is a conditional block (if/unless)
+      if (arrayName === 'if' || arrayName === 'unless') {
+        // Move past this match to find actual array blocks
+        const matchIndex = result.indexOf(fullMatch);
+        const before = result.substring(0, matchIndex + fullMatch.length);
+        const after = result.substring(matchIndex + fullMatch.length);
+        const processedAfter = processArrayBlocks(after, variables);
+        result = before + processedAfter;
+        continue;
+      }
+
+      const arrayValue = variables[arrayName];
+
+      // Check if this variable is actually an array
+      if (Array.isArray(arrayValue)) {
+        // Iterate over array and expand template for each item
+        let expandedContent = '';
+
+        for (let i = 0; i < arrayValue.length; i++) {
+          const item = arrayValue[i];
+          let itemContent = blockContent;
+
+          // Replace {{.}} with the item itself (for simple arrays)
+          if (typeof item !== 'object') {
+            itemContent = itemContent.replace(/\{\{\.\}\}/g, String(item));
+          } else {
+            // Replace {{property}} with item.property for object arrays
+            Object.entries(item).forEach(([key, value]) => {
+              const pattern = new RegExp(`\\{\\{${escapeRegExp(key)}\\}\\}`, 'g');
+              const replacement = value !== null && value !== undefined ? String(value) : '';
+              itemContent = itemContent.replace(pattern, replacement);
+            });
+          }
+
+          // Add index helpers: {{@index}} (0-based), {{@number}} (1-based), {{@first}}, {{@last}}
+          itemContent = itemContent.replace(/\{\{@index\}\}/g, String(i));
+          itemContent = itemContent.replace(/\{\{@number\}\}/g, String(i + 1));
+          itemContent = itemContent.replace(/\{\{@first\}\}/g, String(i === 0));
+          itemContent = itemContent.replace(/\{\{@last\}\}/g, String(i === arrayValue.length - 1));
+
+          expandedContent += itemContent;
+        }
+
+        result = result.replace(fullMatch, expandedContent);
+        changed = true;
+      }
+      // If not an array, leave the block as-is (might be processed by conditionals)
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -156,9 +235,10 @@ function isTruthy(value) {
 
 /**
  * Extracts all template variables from HTML string
- * Includes both simple variables and conditional variables
+ * Includes both simple variables, conditional variables, and array variables
+ * Variables inside array blocks are NOT required at top-level
  * @param {string} html - HTML template
- * @returns {Array<string>} Array of variable names found in template
+ * @returns {Array<string>} Array of variable names found in template (top-level only)
  */
 export function extractTemplateVariables(html) {
   if (!html || typeof html !== 'string') {
@@ -166,23 +246,38 @@ export function extractTemplateVariables(html) {
   }
 
   const variables = new Set();
-  
-  // Extract simple variables: {{variable}}
-  const simplePattern = /\{\{([^#\/][^}]*)\}\}/g;
+  const arrayBlockVariables = new Set(); // Variables inside array blocks
+
+  // First, find all array block names and their inner variables
+  const arrayBlocks = extractArrayBlocks(html);
+  arrayBlocks.forEach(block => {
+    variables.add(block.arrayName); // Array itself is required
+    block.innerVariables.forEach(v => arrayBlockVariables.add(v));
+  });
+
+  // Extract simple variables: {{variable}} (excluding those inside array blocks)
+  let processedHtml = html;
+
+  // Remove array block content to avoid extracting inner variables as top-level
+  arrayBlocks.forEach(block => {
+    processedHtml = processedHtml.replace(block.fullMatch, `{{${block.arrayName}}}`);
+  });
+
+  const simplePattern = /\{\{([^#\/@][^}]*)\}\}/g;
   let match;
-  
-  while ((match = simplePattern.exec(html)) !== null) {
+
+  while ((match = simplePattern.exec(processedHtml)) !== null) {
     const variableName = match[1].trim();
-    // Skip reserved words like 'else'
-    if (variableName !== 'else') {
+    // Skip reserved words and index helpers
+    if (variableName !== 'else' && !variableName.startsWith('@')) {
       variables.add(variableName);
     }
   }
-  
+
   // Extract conditional variables: {{#if variable}} and {{#unless variable}}
   const conditionalPattern = /\{\{#(?:if|unless)\s+([^}]+)\}\}/g;
-  
-  while ((match = conditionalPattern.exec(html)) !== null) {
+
+  while ((match = conditionalPattern.exec(processedHtml)) !== null) {
     variables.add(match[1].trim());
   }
 
@@ -190,15 +285,80 @@ export function extractTemplateVariables(html) {
 }
 
 /**
+ * Extracts array block information from template
+ * @param {string} html - HTML template
+ * @returns {Array<Object>} Array of block info: { arrayName, innerVariables, fullMatch }
+ */
+function extractArrayBlocks(html) {
+  const blocks = [];
+  const reservedKeywords = ['if', 'unless', 'else'];
+
+  // Match array blocks: {{#name}}content{{/name}}
+  const blockPattern = /\{\{#([^}\s]+)\}\}([\s\S]*?)\{\{\/\1\}\}/g;
+  let match;
+
+  while ((match = blockPattern.exec(html)) !== null) {
+    const [fullMatch, blockName, content] = match;
+
+    // Skip reserved keywords (conditionals)
+    if (reservedKeywords.includes(blockName)) {
+      continue;
+    }
+
+    // Extract inner variables from block content
+    const innerVars = new Set();
+    const innerPattern = /\{\{([^#\/@][^}]*)\}\}/g;
+    let innerMatch;
+
+    while ((innerMatch = innerPattern.exec(content)) !== null) {
+      const varName = innerMatch[1].trim();
+      if (varName !== 'else' && !varName.startsWith('@')) {
+        innerVars.add(varName);
+      }
+    }
+
+    blocks.push({
+      arrayName: blockName,
+      innerVariables: Array.from(innerVars),
+      fullMatch
+    });
+  }
+
+  return blocks;
+}
+
+/**
  * Validates template variables against required fields
+ * Handles both simple values and arrays
+ * Empty strings are valid (user explicitly wants empty value)
  * @param {Object} variables - Provided variables
  * @param {Array<string>} requiredVars - Required variable names
  * @returns {Object} Validation result with isValid and missing fields
  */
 export function validateTemplateVariables(variables, requiredVars) {
-  const missing = requiredVars.filter(varName => 
-    variables[varName] === undefined || variables[varName] === null || variables[varName] === ''
-  );
+  // Handle case where variables is passed as a JSON string
+  let vars = variables || {};
+  if (typeof vars === 'string') {
+    try {
+      vars = JSON.parse(vars);
+    } catch (e) {
+      vars = {};
+    }
+  }
+
+  const missing = requiredVars.filter(varName => {
+    // Variable is missing only if not provided at all (undefined) or null
+    // Empty strings ARE valid - user explicitly wants empty value
+    if (!(varName in vars)) return true;
+
+    const value = vars[varName];
+    if (value === undefined || value === null) return true;
+
+    // Empty arrays are considered missing (nothing to iterate)
+    if (Array.isArray(value) && value.length === 0) return true;
+
+    return false;
+  });
 
   return {
     isValid: missing.length === 0,
@@ -210,6 +370,7 @@ export function validateTemplateVariables(variables, requiredVars) {
 
 /**
  * Sanitizes template variables to prevent XSS
+ * Handles nested objects and arrays
  * @param {Object} variables - Variables to sanitize
  * @param {Object} options - Sanitization options
  * @param {boolean} options.skipQuoteEscaping - Skip quote escaping for HTML content
@@ -221,30 +382,46 @@ export function sanitizeTemplateVariables(variables, options = {}) {
   }
 
   const { skipQuoteEscaping = false } = options;
-  const sanitized = {};
-  
-  Object.entries(variables).forEach(([key, value]) => {
+
+  function sanitizeValue(value) {
     if (typeof value === 'string') {
       // Basic HTML escaping to prevent XSS
       let sanitizedValue = value
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
-      
+
       // Only escape quotes if not explicitly skipped (for HTML content)
       if (!skipQuoteEscaping) {
         sanitizedValue = sanitizedValue
           .replace(/"/g, '&quot;')
           .replace(/'/g, '&#39;');
       }
-      
-      sanitized[key] = sanitizedValue;
-    } else {
-      sanitized[key] = value;
-    }
-  });
 
-  return sanitized;
+      return sanitizedValue;
+    } else if (Array.isArray(value)) {
+      // Recursively sanitize array items
+      return value.map(item => {
+        if (typeof item === 'object' && item !== null) {
+          return sanitizeObject(item);
+        }
+        return sanitizeValue(item);
+      });
+    } else if (typeof value === 'object' && value !== null) {
+      return sanitizeObject(value);
+    }
+    return value;
+  }
+
+  function sanitizeObject(obj) {
+    const sanitized = {};
+    Object.entries(obj).forEach(([key, value]) => {
+      sanitized[key] = sanitizeValue(value);
+    });
+    return sanitized;
+  }
+
+  return sanitizeObject(variables);
 }
 
 /**

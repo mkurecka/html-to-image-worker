@@ -10,6 +10,15 @@
  * @returns {Object} - { isValid: boolean, error?: string }
  */
 export function validateApiKey(request, env) {
+  // Allow internal service binding calls (worker-to-worker)
+  // Service bindings use "http://internal/*" URLs and can only come from
+  // other workers in the same Cloudflare account - this is secure
+  const url = new URL(request.url);
+  if (url.hostname === 'internal') {
+    console.log('[AUTH] Internal service binding call - authenticated');
+    return { isValid: true, isInternal: true };
+  }
+
   // Extract API key from headers (supports multiple formats)
   const apiKey =
     request.headers.get('X-API-Key') ||

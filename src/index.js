@@ -14,12 +14,19 @@ export default {
       return createOptionsResponse();
     }
 
+    // Log incoming request
+    console.log('[REQUEST] Pathname:', pathname, 'Method:', method);
+    console.log('[REQUEST] Has X-API-Key header:', !!request.headers.get('X-API-Key'));
+
     // Authentication check for protected endpoints
     if (!isPublicEndpoint(pathname)) {
       const authResult = validateApiKey(request, env);
+      console.log('[AUTH] Validation result:', { isValid: authResult.isValid, hasError: !!authResult.error });
       if (!authResult.isValid) {
+        console.error('[AUTH] Authentication failed:', authResult.error);
         return createErrorResponse(authResult.error, 401);
       }
+      console.log('[AUTH] Authentication successful');
     }
 
     try {
@@ -243,17 +250,27 @@ async function handleImageRender(request, env) {
 async function handleTemplateRender(request, env) {
   try {
     const body = await request.json();
-    const { 
-      template, 
-      variables = {}, 
-      width = 1200, 
-      height = 800, 
-      format = 'png', 
-      quality = 90, 
+    const {
+      template,
+      variables: rawVariables = {},
+      width = 1200,
+      height = 800,
+      format = 'png',
+      quality = 90,
       deviceScaleFactor = 1,
       sanitize = true,
-      returnUrl = true 
+      returnUrl = true
     } = body;
+
+    // Parse variables if passed as JSON string (handle double-encoding)
+    let variables = rawVariables;
+    if (typeof rawVariables === 'string') {
+      try {
+        variables = JSON.parse(rawVariables);
+      } catch (e) {
+        return createErrorResponse('Invalid variables format - must be a JSON object', 400);
+      }
+    }
 
     if (!template) {
       return createErrorResponse('Template HTML is required', 400);
@@ -329,7 +346,17 @@ async function handleTemplateRender(request, env) {
 async function handleTemplatePreview(request) {
   try {
     const body = await request.json();
-    const { template, variables = {}, sanitize = true } = body;
+    const { template, variables: rawVariables = {}, sanitize = true } = body;
+
+    // Parse variables if passed as JSON string
+    let variables = rawVariables;
+    if (typeof rawVariables === 'string') {
+      try {
+        variables = JSON.parse(rawVariables);
+      } catch (e) {
+        return createErrorResponse('Invalid variables format - must be a JSON object', 400);
+      }
+    }
 
     if (!template) {
       return createErrorResponse('Template HTML is required', 400);
@@ -338,7 +365,7 @@ async function handleTemplatePreview(request) {
     // Extract and validate variables
     const templateVars = extractTemplateVariables(template);
     const validation = validateTemplateVariables(variables, templateVars);
-    
+
     // Process variables (skip quote escaping for HTML content)
     const processedVariables = sanitize ? sanitizeTemplateVariables(variables, { skipQuoteEscaping: true }) : variables;
     const processedHtml = processTemplate(template, processedVariables);
